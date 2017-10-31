@@ -3,6 +3,8 @@
 import tensorflow as tf
 import numpy as np
 import matplotlib.pylab as plt
+from mpl_toolkits.mplot3d import Axes3D
+
 from tensorflow.examples.tutorials.mnist import input_data
 from PIL import Image
 import pickle
@@ -242,4 +244,163 @@ def cross_entropy_error(y, t):
     delta = 1e-7
     return -np.sum(t * np.log(y + delta))
 
+#批次對應交叉熵誤差
+def cross_entropy_error_with_batch(y, t):
+    if y.ndim == 1:
+        t = t.reshape(1, t.size)
+        y = t.reshape(1, y.size)
+        
+    batch_size = y.shape[0]
+    return -np.sum(t * np.log(y)) / batch_size
+
+
+#%%
+"""
+微分...
+"""
+
+#數值微分
+def numerical_diff(f, x):
+    h = 1e-4 #0.0001
+    return (f(x+h) - f(x-h)) / (2*h)
+
+#example..
+#y = 0.01x^2 + 0.1x
+def function_1(x):
+    return (0.01 * (x**2)) + (0.1*x)
+
+
+def tangent_line(f, x):
+    d = numerical_diff(f, x)
+    print(d)
+    y = f(x) - d*x
+    return lambda t: d*t + y
+
+x = np.arange(0.0, 20.0, 0.1)
+y = function_1(x)
+plt.xlabel("x")
+plt.ylabel("f(x)")
+
+tf = tangent_line(function_1, 5)
+y2 = tf(x)
+
+plt.plot(x, y)
+plt.plot(x, y2)
+plt.show()
+
+#%%
+"""
+梯度
+"""
+
+#example
+#f(x0, x1) = x0^2 + x1^2
+def function_2(x):
+    if x.ndim == 1:
+        return np.sum(x**2)
+    else:
+        return np.sum(x**2, axis=1)
+
+
+def _numerical_gradient_no_batch(f, x):
+    h = 1e-4
+    grad = np.zeros_like(x)
+    
+    for idx in range(x.size):
+        tmp_val = x[idx]
+        x[idx] = float(tmp_val) + h
+        fxh1 = f(x)
+        
+        x[idx] = tmp_val - h
+        fxh2 = f(x)
+        grad[idx] = (fxh1 - fxh2) / (2*h)
+        
+        x[idx] = tmp_val
+    return grad
+
+def numerical_gradient(f, X):
+    if X.ndim == 1:
+        return _numerical_gradient_no_batch(f, X)
+    else:
+        grad = np.zeros_like(X)
+        
+        for idx, x in enumerate(X):
+            grad[idx] = _numerical_gradient_no_batch(f, x)
+            
+        return grad
+
+x0 = np.arange(-2, 2.5, 0.25)
+x1 = np.arange(-2, 2.5, 0.25)
+X, Y = np.meshgrid(x0, x1)
+
+X = X.flatten()
+Y = Y.flatten()
+
+grad = numerical_gradient(function_2, np.array([X, Y]))
+
+plt.figure()
+plt.quiver(X, Y, -grad[0], -grad[1], angles="xy", color="#666666")
+plt.xlim([-2, 2])
+plt.ylim([-2, 2])
+plt.xlabel('x0')
+plt.ylabel('x1')
+plt.grid()
+plt.legend()
+plt.draw()
+plt.show()
+
+#%%
+"""
+梯度下降
+"""
+
+def gradient_descent(f, init_x, lr = 0.01, setup_num=100):
+    x = init_x
+    
+    for i in range(setup_num):
+        grad = numerical_gradient(f, x)
+        x -= lr * grad
+    
+    return x
+
+#example
+init_x = np.array([-3.0, 4.0])
+print(function_2(gradient_descent(function_2, init_x=init_x)))
+
+#%%
+"""
+用簡易的神經網路實際計算梯度
+"""
+
+class simpleNet:
+    def __init__(self):
+        self.W = np.random.randn(2, 3)
+        
+    def predict(self, x):
+        return np.dot(x, self.W)
+    
+    def loss(self, x ,t):
+        z = self.predict(x)
+        y = softmax(z)
+        loss = cross_entropy_error(y, t)
+        
+        return loss
+    
+net = simpleNet()
+print(net.W)
+
+x = np.array([0.6, 0.9])
+p = net.predict(x)
+print(p)
+ 
+print(np.argmax(p))
+
+t = np.array([0, 0, 1])
+print(net.loss(x, t))
+
+def f(W):
+    return net.loss(x, t)
+
+dw = numerical_gradient(f, net.W)
+print(dw)
 #%%
